@@ -130,3 +130,7 @@ dmypy.json
 
 # IDEA stuff
 .idea/
+
+game/
+gamedata_backup.dat
+version.json
