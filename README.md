@@ -1,7 +1,10 @@
 # SMALauncher
 A simple launcher/updater for Shang Mu Architect.
 
-Uses the `pyinstaller` and `packaging` packages.
+Uses the following packages:
+- `pyinstaller`
+- `packaging`
+- `tqdm`
 
 ## Building
 
