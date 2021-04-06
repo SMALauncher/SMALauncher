@@ -1,11 +1,12 @@
+import hashlib
 import json
-import urllib.request
-import semver
+import os
 import shutil
 import tempfile
-import hashlib
+import urllib.request
 import zipfile
-import os
+
+from packaging import version
 
 meta_url = 'https://raw.githubusercontent.com/Leo40Git/SMALauncher/master/meta.json'  # TODO replace with "live" link
 
@@ -31,9 +32,9 @@ def main():
 
     ver_remote = json_remote['latest_version']
     update = True
-    if (json_local is not None) and hasattr(json_local, 'version'):
+    if json_local is not None:
         ver_local = json_local['version']
-        update = semver.compare(ver_local, ver_remote) < 0
+        update = version.parse(ver_local) < version.parse(ver_remote)
         if update:
             print('We\'re out of date! Our version is "{0}", while latest is "{1}"'.format(ver_local, ver_remote))
         else:
@@ -84,7 +85,9 @@ def main():
         with open('version.json', 'wt') as meta_file:
             json.dump(json_local, meta_file)
 
-    os.system(json_local['exe_name'])
+    print('Running the game!')
+    os.chdir('game')
+    os.spawnl(os.P_NOWAIT, json_local['exe_name'], json_local['exe_name'])
 
 
 if __name__ == '__main__':
