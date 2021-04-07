@@ -3,7 +3,7 @@ A simple launcher/updater for [Shang Mu Architect](https://github.com/whitelilyd
 
 Uses the following packages:
 - `pyinstaller`
-- `packaging`
+- `rqeuests`
 - `tqdm`
 
 ## Building

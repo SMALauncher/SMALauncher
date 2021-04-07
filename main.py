@@ -2,16 +2,16 @@ import hashlib
 import json
 import os
 import tempfile
-import urllib.request
 import zipfile
 
-from packaging import version
+import requests
 from tqdm import tqdm
 
-meta_url = 'https://raw.githubusercontent.com/Leo40Git/SMALauncher/master/meta.json'  # TODO replace with "live" link
+repo_path = 'whitelilydragon/ShangMuArchitect'
+latest_release_url = 'https://api.github.com/repos/{0}/releases/latest'.format(repo_path)
 
 
-def get_json_local(name):
+def load_json(name):
     if not os.path.isfile(name):
         return None
     fp = open(name)
@@ -20,83 +20,121 @@ def get_json_local(name):
     return obj
 
 
-def get_json_remote(url):
-    with urllib.request.urlopen(url) as res:
-        return json.loads(res.read())
-
-
-class DownloadProgressBar(tqdm):
-    def update_to(self, b=1, bsize=1, tsize=None):
-        if tsize is not None:
-            self.total = tsize
-        self.update(b * bsize - self.n)
+def try_update(local_meta):
+    print('Fetching latest release from "{0}"'.format(latest_release_url))
+    res = requests.get(latest_release_url)
+    if res.status_code != 200:
+        print('Failed to fetch latest release! Got status code {0}'.format(res.status_code))
+        return local_meta
+    latest_json = res.json()
+    latest_id = int(latest_json['id'])
+    latest_name = str(latest_json['tag_name'])
+    if local_meta is None:
+        print('First run!')
+    else:
+        current_id = int(local_meta['release_id'])
+        current_name = str(local_meta['release_name'])
+        if latest_id > current_id:
+            print('We\'re out of date! Our version is {0}, while latest is {1}'.format(current_name, latest_name))
+        else:
+            print('We\'re up to date, yay!')
+            return local_meta
+    print('Downloading latest version {0}'.format(latest_name))
+    # find meta.json first
+    latest_meta_dl = None
+    for asset in latest_json['assets']:
+        if str(asset['name']) == 'meta.json':
+            latest_meta_dl = str(asset['browser_download_url'])
+            break
+    if latest_meta_dl is None:
+        print('Latest release is missing a "meta.json" file! Go yell at Libbie')
+        return local_meta
+    res = requests.get(latest_meta_dl)
+    if res.status_code != 200:
+        print('Failed to fetch latest release metadata from "{0}"! Got status code {1}'
+              .format(latest_meta_dl, res.status_code))
+        return local_meta
+    latest_meta = res.json()
+    zip_md5 = str(latest_meta['asset_md5']).lower()
+    # download the game ZIP
+    zip_dl = None
+    for asset in latest_json['assets']:
+        if str(asset['content_type']) == 'application/x-zip-compressed':
+            zip_dl = str(asset['browser_download_url'])
+            break
+    if zip_dl is None:
+        print('Latest release is missing a ZIP file! Go yell at Libbie')
+    print('Downloading latest game ZIP from "{0}"'.format(zip_dl))
+    zip_name = zip_dl.split('/')[-1]
+    tmp_name = tempfile.mktemp()
+    tmp_file = open(tmp_name, 'rw+b')
+    res = requests.get(zip_dl, stream=True)
+    total = int(res.headers.get('content-length', 0))
+    with tqdm(desc=zip_name,
+              total=total,
+              unit='iB',
+              unit_scale=True,
+              unit_divisor=1024) as bar:
+        for chunk in res.iter_content(chunk_size=1024):
+            size = tmp_file.write(chunk)
+            bar.update(size)
+    print('Done downloading ZIP!')
+    # verify MD5
+    print('Verifying MD5 of downloaded ZIP...')
+    tmp_file.seek(0)
+    hash_md5 = hashlib.md5()
+    with tqdm(desc=zip_name + ':md5',
+              total=total,
+              unit='iB',
+              unit_scale=True,
+              unit_divisor=1024) as bar:
+        for chunk in iter(lambda: tmp_file.read(1024), b""):
+            hash_md5.update(chunk)
+            bar.update(1024)
+    tmp_file.close()
+    zip_md5_actual = hash_md5.hexdigest().lower()
+    if zip_md5_actual != zip_md5:
+        print('Downloaded ZIP has incorrect MD5 hash! Should be {0}, but is {1}'.format(zip_md5, zip_md5_actual))
+        os.remove(tmp_name)
+        return local_meta
+    print('Done verifying ZIP!')
+    # back up gamedata.dat (settings, best times)
+    if os.path.isdir('game'):
+        if os.path.isfile('gamedata_backup.dat'):
+            os.remove('gamedata_backup.dat')
+        os.rename('game/gamedata.dat', 'gamedata_backup.dat')
+    # unzip
+    print('Unzipping to "game" folder..')
+    with zipfile.ZipFile(tmp_name, 'r') as zip_file:
+        zip_file.extractall('game')
+    os.remove(tmp_name)
+    # restore gamedata.dat
+    if os.path.isfile('gamedata_backup.dat'):
+        if os.path.isfile('game/gamedata.dat'):
+            os.remove('game/gamedata.dat')
+        os.rename('gamedata_backup.dat', 'game/gamedata.dat')
+    # update local meta
+    if local_meta is None:
+        local_meta = {}
+    local_meta['release_id'] = latest_id
+    local_meta['release_name'] = latest_name
+    local_meta['exe_name'] = latest_meta['exe_name']
+    return local_meta
 
 
 def main():
-    json_local = get_json_local('version.json')
-    print('Downloading latest version metadata from "{0}"'.format(meta_url))
-    json_remote = get_json_remote(meta_url)
-
-    ver_remote = json_remote['latest_version']
-    update = True
-    if json_local is None or not os.path.isdir('game'):
-        print('First run! Downloading latest version "{0}"'.format(ver_remote))
-    else:
-        ver_local = json_local['version']
-        update = version.parse(ver_local) < version.parse(ver_remote)
-        if update:
-            print('We\'re out of date! Our version is "{0}", while latest is "{1}"'.format(ver_local, ver_remote))
-        else:
-            print('We\'re up to date, yay!')
-
-    if update:
-        dl_url = json_remote['download_url']
-        print('Downloading latest version from "{0}"'.format(dl_url))
-        tmp_name = tempfile.mktemp()
-        with DownloadProgressBar(unit='iB',
-                                 unit_scale=True,
-                                 unit_divisor=1024,
-                                 miniters=1,
-                                 desc=dl_url.split('/')[-1]) as t:
-            urllib.request.urlretrieve(dl_url, filename=tmp_name, reporthook=t.update_to)
-
-        hash_md5 = hashlib.md5()
-        with open(tmp_name, 'rb') as tmp_file:
-            for chunk in iter(lambda: tmp_file.read(4096), b""):
-                hash_md5.update(chunk)
-        md5_actual = hash_md5.hexdigest().lower()
-        md5_expected = str(json_remote['download_md5']).lower()
-        if md5_actual != md5_expected:
-            print('ERROR: Downloaded file has bad MD5 hash! Expected "{0}", got "{0}"'.format(md5_expected, md5_actual))
-            os.remove(tmp_name)
-            exit(1)
-
-        if os.path.isdir('game'):
-            if os.path.isfile('gamedata_backup.dat'):
-                os.remove('gamedata_backup.dat')
-            os.rename('game/gamedata.dat', 'gamedata_backup.dat')
-
-        print('Unzipping to "game" folder..')
-        with zipfile.ZipFile(tmp_name, 'r') as zip_file:
-            zip_file.extractall('game')
-
-        if os.path.isfile('gamedata_backup.dat'):
-            if os.path.isfile('game/gamedata.dat'):
-                os.remove('game/gamedata.dat')
-            os.rename('gamedata_backup.dat', 'game/gamedata.dat')
-
-        os.remove(tmp_name)
-
-        if json_local is None:
-            json_local = {}
-        json_local['version'] = ver_remote
-        json_local['exe_name'] = json_remote['exe_name']
-        with open('version.json', 'wt') as meta_file:
-            json.dump(json_local, meta_file)
-
+    local_meta = load_json('version.json')
+    local_meta = try_update(local_meta)
+    if local_meta is None:
+        print('First run failed! Please check your Internet connection.')
+        exit(1)
+        return
+    with open('version.json', 'wt') as fp:
+        json.dump(local_meta, fp)
+    exe_name = str(local_meta['exe_name'])
     print('Running the game!')
     os.chdir('game')
-    os.spawnl(os.P_NOWAIT, json_local['exe_name'], json_local['exe_name'])
+    os.spawnl(os.P_NOWAIT, exe_name, exe_name)
 
 
 if __name__ == '__main__':
