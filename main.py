@@ -4,6 +4,7 @@ import os
 import tempfile
 import zipfile
 from datetime import datetime
+from sys import exit
 
 import requests
 from tqdm import tqdm
