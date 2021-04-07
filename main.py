@@ -7,6 +7,7 @@ import zipfile
 import requests
 from tqdm import tqdm
 
+local_meta_name = 'meta.json'
 repo_path = 'whitelilydragon/ShangMuArchitect'
 latest_release_url = 'https://api.github.com/repos/{0}/releases/latest'.format(repo_path)
 
@@ -123,13 +124,13 @@ def try_update(local_meta):
 
 
 def main():
-    local_meta = load_json('version.json')
+    local_meta = load_json(local_meta_name)
     local_meta = try_update(local_meta)
     if local_meta is None:
         print('First run failed! Please check your Internet connection.')
         exit(1)
         return
-    with open('version.json', 'wt') as fp:
+    with open(local_meta_name, 'wt') as fp:
         json.dump(local_meta, fp)
     exe_name = str(local_meta['exe_name'])
     print('Running the game!')

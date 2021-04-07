@@ -133,4 +133,4 @@ dmypy.json
 
 game/
 gamedata_backup.dat
-version.json
+meta.json
