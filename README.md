@@ -8,4 +8,5 @@ Uses the following packages:
 
 ## Building
 
-Simply run `pyinstaller --onefile main.py`! Your file should be in `dist/main.exe`.
+Simply run `pyinstaller -F main.py -i icon.ico`!  
+Your file should be in `dist/main.exe`.

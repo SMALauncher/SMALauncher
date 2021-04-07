@@ -40,7 +40,7 @@ def try_update(local_meta):
             print('We\'re out of date! Our version is {0}, while latest is {1}'.format(current_name, latest_name))
         else:
             print('We\'re up to date, yay!')
-            return local_meta
+            return True, local_meta
     print('Downloading latest version {0}'.format(latest_name))
     # find meta.json first
     latest_meta_dl = None
@@ -50,12 +50,12 @@ def try_update(local_meta):
             break
     if latest_meta_dl is None:
         print('Latest release is missing a "meta.json" asset! Please contact Libbie.')
-        return local_meta
+        return False, local_meta
     res = requests.get(latest_meta_dl)
     if res.status_code != 200:
         print('Failed to fetch latest release metadata from "{0}"! Got status code {1}'
               .format(latest_meta_dl, res.status_code))
-        return local_meta
+        return False, local_meta
     latest_meta = res.json()
     zip_md5 = str(latest_meta['asset_md5']).lower()
     # download the game ZIP
@@ -66,7 +66,7 @@ def try_update(local_meta):
             break
     if zip_dl is None:
         print('Latest release is missing a ZIP file asset! Please contact Libbie.')
-        return local_meta
+        return False, local_meta
     print('Downloading latest game ZIP from "{0}"'.format(zip_dl))
     zip_name = zip_dl.split('/')[-1]
     tmp_name = tempfile.mktemp()
@@ -99,7 +99,7 @@ def try_update(local_meta):
     if zip_md5_actual != zip_md5:
         print('Downloaded ZIP has incorrect MD5 hash! Should be {0}, but is {1}'.format(zip_md5, zip_md5_actual))
         os.remove(tmp_name)
-        return local_meta
+        return False, local_meta
     print('Done verifying ZIP!')
     # back up gamedata.dat (settings, best times)
     if os.path.isdir('game'):
@@ -125,14 +125,15 @@ def try_update(local_meta):
     local_meta['release_id'] = latest_id
     local_meta['release_name'] = latest_name
     local_meta['exe_name'] = latest_meta['exe_name']
-    return local_meta
+    return True, local_meta
 
 
 def main():
     local_meta = load_json(local_meta_name)
-    local_meta = try_update(local_meta)
+    success, local_meta = try_update(local_meta)
     if local_meta is None:
         print('First run failed! Please check your Internet connection.')
+        input('Press Enter to exit...')
         exit(1)
         return
     with open(local_meta_name, 'wt') as fp:
@@ -141,6 +142,9 @@ def main():
     print('Running the game!')
     os.chdir('game')
     os.spawnl(os.P_NOWAIT, exe_name, exe_name)
+    if not success:
+        input('Press Enter to exit...')
+        exit(1)
 
 
 if __name__ == '__main__':
