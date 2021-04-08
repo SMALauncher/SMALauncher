@@ -10,3 +10,5 @@ Uses the following packages:
 
 Simply run `pyinstaller -F main.py -i icon.ico`!  
 Your file should be in `dist/main.exe`.
+
+You can optionally add [UPX](https://upx.github.io/) to your PATH to create smaller EXEs.
