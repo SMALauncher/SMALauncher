@@ -71,7 +71,7 @@ def try_update(local_meta):
     print('Downloading latest game ZIP from "{0}"'.format(zip_dl))
     zip_name = zip_dl.split('/')[-1]
     tmp_name = tempfile.mktemp()
-    tmp_file = open(tmp_name, 'rw+b')
+    tmp_file = open(tmp_name, 'w+b')
     res = requests.get(zip_dl, stream=True)
     total = int(res.headers.get('content-length', 0))
     with tqdm(desc=zip_name,
@@ -82,10 +82,11 @@ def try_update(local_meta):
         for chunk in res.iter_content(chunk_size=1024):
             size = tmp_file.write(chunk)
             bar.update(size)
+    tmp_file.close()
     print('Done downloading ZIP!')
     # verify MD5
     print('Verifying MD5 of downloaded ZIP...')
-    tmp_file.seek(0)
+    tmp_file = open(tmp_name, 'r+b')
     hash_md5 = hashlib.md5()
     with tqdm(desc=zip_name + ':md5',
               total=total,
