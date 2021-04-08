@@ -1,14 +1,22 @@
 # SMALauncher
-A simple launcher/updater for [Shang Mu Architect](https://github.com/whitelilydragon/ShangMuArchitect).
+A simple launcher/updater for [Shang Mu Architect](https://github.com/whitelilydragon/ShangMuArchitect). Updates your game while keeping your settings intact!
 
-Uses the following packages:
+You can download the latest release of the launcher [here](https://github.com/Leo40Git/SMALauncher/releases/latest).
+
+Alternatively, you can download [the script](https://github.com/Leo40Git/SMALauncher/blob/master/main.py) and run it with Python 3 (Python 2 is untested). Take care to install the necessary packages, though.
+
+Simply download it into some directory and run it - it'll automatically download the latest release of the game and launch it!
+
+No special actions are needed to update the game - the launcher will automatically check every time it's run.
+
+## Building from source
+
+First, install the following packages:
 - `pyinstaller`
 - `rqeuests`
 - `tqdm`
 
-## Building
-
-Simply run `pyinstaller -F main.py -i icon.ico`!  
+Then, simply run `pyinstaller -F main.py -i icon.ico`!  
 Your file should be in `dist/main.exe`.
 
 You can optionally add [UPX](https://upx.github.io/) to your PATH to create smaller EXEs.
