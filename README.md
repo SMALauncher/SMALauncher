@@ -11,13 +11,13 @@ No special actions are needed to update the game - the launcher will automatical
 
 ## Packages
 
-- `requests` - for easier interaction with the web
-- `tqdm` - for some fancy loading bars!
+- `requests` - for (somewhat) sane web interactions
+- `tqdm` - for fancy loading bars!
 
 
 ## Building from source
 
-Install the `pyinstaller`, then run `pyinstaller -F main.py -i icon.ico`.  
+Install the `pyinstaller` package, then run `pyinstaller -F main.py -i icon.ico`.  
 Your file should be in `dist/main.exe`.
 
 You can optionally add [UPX](https://upx.github.io/) to your PATH to create smaller EXEs.
