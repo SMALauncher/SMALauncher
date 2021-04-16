@@ -25,7 +25,7 @@ def load_json(name):
 
 def try_update(local_meta):
     print('Fetching latest release from "{0}"'.format(latest_release_url))
-    res = requests.get(latest_release_url)
+    res = requests.get(latest_release_url, headers={'Accept': 'application/vnd.github.v3+json'})
     if res.status_code != 200:
         print('Failed to fetch latest release! Got status code {0}'.format(res.status_code))
         return local_meta
