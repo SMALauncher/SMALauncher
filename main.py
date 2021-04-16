@@ -17,9 +17,12 @@ latest_release_url = 'https://api.github.com/repos/{0}/releases/latest'.format(r
 def load_json(name):
     if not os.path.isfile(name):
         return None
-    fp = open(name)
-    obj = json.load(fp)
-    fp.close()
+    try:
+        with open(name) as f:
+            obj = json.load(f)
+    except EnvironmentError as err:
+        print('Failed to read JSON file: {0}'.format(err))
+        obj = None
     return obj
 
 
