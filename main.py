@@ -5,33 +5,34 @@ import tempfile
 import zipfile
 from datetime import datetime
 from sys import exit
+from typing import Optional
 
 import requests
 from tqdm import tqdm
 
 local_meta_name = 'meta.json'
 repo_path = 'whitelilydragon/ShangMuArchitect'
-latest_release_url = 'https://api.github.com/repos/{0}/releases/latest'.format(repo_path)
+latest_release_url = 'https://api.github.com/repos/{}/releases/latest'.format(repo_path)
 
 
-def load_json(name):
+def load_json(name: str) -> Optional[dict]:
     if not os.path.isfile(name):
         return None
     try:
         with open(name) as f:
             obj = json.load(f)
     except EnvironmentError as err:
-        print('Failed to read JSON file: {0}'.format(err))
+        print('Failed to read JSON file: {}'.format(err))
         obj = None
     return obj
 
 
-def update(local_meta):
-    print('Fetching latest release from "{0}"'.format(latest_release_url))
+def update(local_meta: Optional[dict]) -> tuple[bool, Optional[dict]]:
+    print('Fetching latest release from "{}"'.format(latest_release_url))
     res = requests.get(latest_release_url, headers={'Accept': 'application/vnd.github.v3+json'})
     if res.status_code != 200:
-        print('Failed to fetch latest release! Got status code {0}'.format(res.status_code))
-        return local_meta
+        print('Failed to fetch latest release! Got status code {}'.format(res.status_code))
+        return False, local_meta
     latest_json = res.json()
     latest_id = int(latest_json['id'])
     latest_name = str(latest_json['tag_name'])
@@ -41,11 +42,11 @@ def update(local_meta):
         current_id = int(local_meta['release_id'])
         current_name = str(local_meta['release_name'])
         if latest_id > current_id:
-            print('We\'re out of date! Our version is {0}, while latest is {1}'.format(current_name, latest_name))
+            print('We\'re out of date! Our version is {}, while latest is {}'.format(current_name, latest_name))
         else:
             print('We\'re up to date, yay!')
             return True, local_meta
-    print('Downloading latest version {0}'.format(latest_name))
+    print('Downloading latest version {}'.format(latest_name))
     # find meta.json first
     latest_meta_dl = None
     for asset in latest_json['assets']:
@@ -53,11 +54,12 @@ def update(local_meta):
             latest_meta_dl = str(asset['browser_download_url'])
             break
     if latest_meta_dl is None:
-        print('Latest release is missing a "meta.json" asset! Please contact Libbie.')
+        print('Latest release "{}" is missing a "meta.json" asset! Please contact Libbie.'
+              .format(latest_name))
         return False, local_meta
     res = requests.get(latest_meta_dl)
     if res.status_code != 200:
-        print('Failed to fetch latest release metadata from "{0}"! Got status code {1}'
+        print('Failed to fetch latest release metadata from "{}"! Got status code {}'
               .format(latest_meta_dl, res.status_code))
         return False, local_meta
     latest_meta = res.json()
@@ -65,13 +67,15 @@ def update(local_meta):
     # download the game ZIP
     zip_dl = None
     for asset in latest_json['assets']:
-        if str(asset['content_type']) == 'application/x-zip-compressed':
+        if str(asset['name']).startswith('Shang_Mu_Architect_') \
+                and str(asset['content_type']) == 'application/x-zip-compressed':
             zip_dl = str(asset['browser_download_url'])
             break
     if zip_dl is None:
-        print('Latest release is missing a ZIP file asset! Please contact Libbie.')
+        print('Latest release "{}" is missing the game ZIP file (name starts with "Shang Mu Architect")!'
+              'Please contact Libbie.'.format(latest_name))
         return False, local_meta
-    print('Downloading latest game ZIP from "{0}"'.format(zip_dl))
+    print('Downloading latest game ZIP from "{}"'.format(zip_dl))
     zip_name = zip_dl.split('/')[-1]
     tmp_name = tempfile.mktemp()
     res = requests.get(zip_dl, stream=True)
@@ -95,22 +99,16 @@ def update(local_meta):
     print('Verifying MD5 of downloaded ZIP...')
     hash_md5 = hashlib.md5()
     try:
-        with open(tmp_name, 'r+b') as tmp_file, \
-                tqdm(desc=zip_name + ':md5',
-                     total=total,
-                     unit='iB',
-                     unit_scale=True,
-                     unit_divisor=1024) as bar:
+        with open(tmp_name, 'r+b') as tmp_file:
             for chunk in iter(lambda: tmp_file.read(1024), b""):
                 hash_md5.update(chunk)
-                bar.update(1024)
     except KeyboardInterrupt:
         print('Interrupted by user, aborting')
         os.remove(tmp_name)
         return False, local_meta
     zip_md5_actual = hash_md5.hexdigest().lower()
     if zip_md5_actual != zip_md5:
-        print('Downloaded ZIP has incorrect MD5 hash! Should be {0}, but is {1}'.format(zip_md5, zip_md5_actual))
+        print('Downloaded ZIP has incorrect MD5 hash! Should be {}, but is {}'.format(zip_md5, zip_md5_actual))
         os.remove(tmp_name)
         return False, local_meta
     print('ZIP verified! Download was successful!')
@@ -132,8 +130,8 @@ def update(local_meta):
     # update local meta
     if local_meta is None:
         local_meta = {}
-    local_meta['_comment1'] = 'Generated by SMALauncher on {0}' \
-        .format(datetime.now().strftime("%m/%d/%Y, %H:%M:%S"))
+    local_meta['_comment1'] = 'Generated by SMALauncher on {}' \
+        .format(datetime.now().strftime("%Y/%m/%d, %H:%M:%S"))
     local_meta['_comment2'] = 'Manually modifying this file may cause update checking to break!!!'
     local_meta['release_id'] = latest_id
     local_meta['release_name'] = latest_name
@@ -141,24 +139,44 @@ def update(local_meta):
     return True, local_meta
 
 
-def try_update(local_meta):
+def try_update(local_meta: Optional[dict]) -> tuple[bool, Optional[dict]]:
     try:
         return update(local_meta)
-    except EnvironmentError as err:
-        print('Failed to update game: {0}'.format(err))
+    except Exception as err:
+        print('Failed to update game due to exception:\n'
+              '  {}: {}'.format(type(err).__name__, str(err)))
         return False, local_meta
 
 
 def main():
-    local_meta = load_json(local_meta_name)
+    local_meta = None
+    if os.path.isdir('game'):
+        local_meta = load_json(local_meta_name)
+        if local_meta is None:
+            # game is probably unrelated, then
+            name = 'game_unrelated_{}'.format(datetime.now().strftime('%Y%m%dT%H%M%S'))
+            try:
+                os.rename('game', name)
+                print('Found unrelated "game" directory, has been renamed to "{}"'.format(name))
+            except EnvironmentError as err:
+                print('Found unrelated "game" directory and couldn\'t rename it, crashing instead\n'
+                      '  {}: {}'.format(type(err).__name__, str(err)))
+                exit(1)
+                return
     success, local_meta = try_update(local_meta)
     if local_meta is None:
         print('First run failed! Please check your Internet connection.')
-        input('Press Enter to exit...')
+        input('Press Enter to exit... ')
         exit(1)
         return
     with open(local_meta_name, 'wt') as fp:
         json.dump(local_meta, fp)
+    if not success:
+        print('Failed to update game.')
+        answer = input('Launch anyways? [Y/n] ').lower().strip()[:1]
+        if answer == 'n':
+            exit(0)
+            return
     exe_name = str(local_meta['exe_name'])
     print('Running the game!')
     os.chdir('game')

@@ -132,5 +132,7 @@ dmypy.json
 .idea/
 
 game/
+game_unzip_*/
+game_unrelated_*/
 gamedata_backup.dat
 meta.json
